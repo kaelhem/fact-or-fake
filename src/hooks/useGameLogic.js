@@ -24,31 +24,58 @@ export const useGameLogic = () => {
     setGameState(prev => ({ ...prev, loading: true }));
 
     try {
-      const realFacts = await fetchRealFacts();
-      const gameFacts = [];
+      const allFacts = await fetchRealFacts();
 
-      // Create a mix of 50% real and 50% fake facts
-      for (let i = 0; i < TOTAL_ROUNDS; i++) {
-        if (i % 2 === 0 && realFacts.length > 0) {
-          // Add a real fact
-          const randomIndex = Math.floor(Math.random() * realFacts.length);
-          gameFacts.push(realFacts[randomIndex]);
-        } else if (realFacts.length > 0) {
-          // Generate a fake fact from a real one
-          const randomIndex = Math.floor(Math.random() * realFacts.length);
-          const fakeFact = generateFakeFact(realFacts[randomIndex]);
-          gameFacts.push(fakeFact);
+      // Shuffle all available facts
+      const shuffledPool = [...allFacts].sort(() => Math.random() - 0.5);
+
+      const gameFacts = [];
+      const usedTexts = new Set(); // Track used fact texts to prevent duplicates
+
+      // Select 10 unique facts (5 real, 5 fake)
+      let realCount = 0;
+      let fakeCount = 0;
+
+      for (let i = 0; i < shuffledPool.length && gameFacts.length < TOTAL_ROUNDS; i++) {
+        const fact = shuffledPool[i];
+
+        // Skip if we've already used this fact text
+        if (usedTexts.has(fact.text)) {
+          continue;
+        }
+
+        // Add real fact if we need more
+        if (realCount < 5) {
+          gameFacts.push({ ...fact, isTrue: true });
+          usedTexts.add(fact.text);
+          realCount++;
+        }
+
+        // Generate and add fake fact if we need more
+        if (fakeCount < 5 && i + 1 < shuffledPool.length) {
+          const sourceFact = shuffledPool[i + 1];
+          if (!usedTexts.has(sourceFact.text)) {
+            const fakeFact = generateFakeFact(sourceFact);
+
+            // Make sure the fake is actually different from the original
+            if (fakeFact.text !== sourceFact.text && !usedTexts.has(fakeFact.text)) {
+              gameFacts.push(fakeFact);
+              usedTexts.add(sourceFact.text); // Mark source as used
+              usedTexts.add(fakeFact.text);   // Mark fake as used
+              fakeCount++;
+            }
+          }
         }
       }
 
-      // Shuffle the facts
-      const shuffledFacts = gameFacts.sort(() => Math.random() - 0.5);
+      // Final shuffle of the game facts
+      const finalFacts = gameFacts.sort(() => Math.random() - 0.5);
 
       setGameState({
         currentRound: 0,
         score: 0,
-        facts: shuffledFacts,
-        currentFact: shuffledFacts[0],
+        facts: finalFacts,
+        currentFact: finalFacts[0],
         showFeedback: false,
         isCorrect: false,
         gameEnded: false,
